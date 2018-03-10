@@ -106,7 +106,7 @@ function set(){
 if [ "$#" == "0" ] ; then
   echo "Configuration ini command editor"
   echo "Usage:"
-  echo "\$0 [</path/to/file.ini> [-v] <-G|-S|-D> [group] <key> [value]]"
+  echo "\$0 [</path/to/file.ini> [-v,-w] <-G|-S|-D> [group] <key> [value]]"
   echo " Without parameters - show this help"
   echo " -v|--verbose - print what doing"
   echo " -G|--get     - get value"
