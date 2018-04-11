@@ -3,7 +3,7 @@
 PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin
 trap 'echo "Edit ini error"' 1 2 3 15
 
-function get(){
+function fget(){
   [ 1 -gt $# ] && echo "get: Too few parameters $# : $@" && exit 1
   local OK=1
   local value=
@@ -12,6 +12,7 @@ function get(){
     if [ "$1" != "${1#[}" ]; then
         # get section
         value=$(sed -n "/$target/ s| *||g p" "$inputfile")
+        [ -n "$value" ]
         OK=$?
     else
         # get value
@@ -28,14 +29,14 @@ function get(){
     targetsection=$(echo "$targetsection" | sed 's|\\|\\\\|g;s|\[|\\\[|g;s|\]|\\\]|g;s|\/|\\\/|g;s|\.|\\\.|g;s|\$|\\\$|g;s|\^|\\\^|g;s|\*|\\\*|g')
     local targetkey=$(echo "$2" | sed 's|\\|\\\\|g;s|\[|\\\[|g;s|\]|\\\]|g;s|\/|\\\/|g;s|\.|\\\.|g;s|\$|\\\$|g;s|\^|\\\^|g;s|\*|\\\*|g')
     #key=b0; echo -e "[A]\a=\n[B]\nb0=\nb1=b1\n[C]\nc=c" | sed -n '/\[B\]/! b; :next; n; /\[/ b; /^'$key'.*= */ {s|^'$key'.*= *||; s|^$|empty| ; p;} $ b; b next;'
-    value=$(sed -n '/'$targetsection'/! b; :next; n; /\[/ b; /^'$targetkey'.*= */ {s|^'$targetkey'.*= *||; s|^$| | ; p;} $ b; b next;' $inputfile)
+    value=$(sed -n '/'$targetsection'/! b; :next; n; /\[/ b; /^'$targetkey'.*= */ {s|^'$targetkey'.*= *||; s|^$| | ; p;}; $ b; b next;' $inputfile)
     OK=$?
   fi
   [ -n "$value" ] && echo "$value" && exit $OK
   return 1
 }
 
-function del(){
+function fdel(){
   [ 1 -gt $# ] && echo "del: Too few parameters $# $@" && exit 1
   local OK=1
   if [ 1 -eq $# ]; then
@@ -56,22 +57,25 @@ function del(){
   return $OK
 }
 
-function set(){
+function fset(){
   [ 1 -gt $# ] && echo "set: Too few parameters $# $@" && exit 1
   local OK=1
+  local value=$1
   if [ 1 -eq $# ]; then
     if [ "$1" != "${1#[}" ]; then
-      local value=$($self "'$inputfile' -G '$1'")
-      OK=$?
-      if [ 0 -ne $OK ]; then
-        sed "$ s|$|\n$1\n|" "$inputfile"
-        OK=$?
-      else
-        sed '' "$inputfile"
-        OK=0
-      fi
+      value="$1"
     else
-      echo "Expected [section]"
+      value="[$1]"
+    fi
+    $self $inputfile -v -G $value > /dev/null 2>&1
+    OK=$?
+    if [ 0 -ne $OK ]; then
+      value=$(echo "$value" | sed 's|\\|\\\\|g;s|\[|\\\[|g;s|\]|\\\]|g;s|\/|\\\/|g;s|\.|\\\.|g;s|\$|\\\$|g;s|\^|\\\^|g;s|\*|\\\*|g')
+      sed "$ s|$|\n$value\n|" "$inputfile"
+      OK=$?
+    else
+      sed '' "$inputfile"
+      OK=0
     fi
     return $OK
   elif [ 2 -eq $# ]; then
@@ -91,9 +95,12 @@ function set(){
     local targetvalue=$(echo "$3" | sed 's|\\|\\\\|g;s|\[|\\\[|g;s|\]|\\\]|g;s|\/|\\\/|g;s|\.|\\\.|g;s|\$|\\\$|g;s|\^|\\\^|g;s|\*|\\\*|g')
     if $self $inputfile -G "$1"; then # if section exist
       if $self $inputfile -G "$1 $2"; then # if key exist
-        sed '/'$targetsection'/! b; :next; n; /'$targetkey'/! b next; s|'$targetkey'.*|'$2' ='$3'|' $inputfile
+        #sed '/'$targetsection'/! b; :next; n; /'$targetkey'/! b next; s|'$targetkey'.*|'$2' ='$3'|' "$inputfile"
+        #echo "sed /$targetsection/! b; :next; n; /$targetkey/! b next; s|$targetkey.*|$2 =$targetvalue|"
+        sed "/$targetsection/! b; :next; n; /$targetkey/! b next; s|$targetkey.*|$2 =$targetvalue|" $inputfile
         OK=$?
       else
+        #echo "sed /$targetsection/ s|\$|\n$2= $3|"
         sed "/$targetsection/ s|\$|\n$2= $3|" $inputfile
         OK=$?
       fi
@@ -119,8 +126,8 @@ if [ "$#" == "0" ] ; then
 fi
 
 self=$0
-[ ! -f $1 ] && echo "File $1 not found" && exit 1
-inputfile=$1
+[ ! -f "$1" ] && echo "File $1 not found" && exit 1
+inputfile="$1"
 
 shift
 verbose=0
@@ -140,20 +147,20 @@ while (( "$#" )); do
     ;;
     -G|--get)
         shift
-        value=$(get $@)
+        value=$(fget $@)
         OK=$?
         break
         #exit $OK
     ;;
     -S|--set)
         shift
-        value=$(set $@)
+        value=$(fset $@)
         OK=$?
         break
     ;;
     -D|--del)
         shift
-        value="$(del $@)"
+        value="$(fdel $@)"
         OK=$?
         break
     ;;
@@ -164,7 +171,7 @@ done
 if [ 2 -le $verbose ]; then
   echo -e "$OK\n$value"
 elif [ 1 -le $verbose ]; then
-  echo "$value"
+  echo -E "$value"
 fi
-[ $OK ] && [ 1 -eq $write ] && echo "$value" > $inputfile
+[ $OK ] && [ 1 -eq $write ] && echo -E "$value" > $inputfile
 exit $OK
