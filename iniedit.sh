@@ -51,7 +51,7 @@ function fdel(){
   else
     local targetsection=$(echo "$1" | sed 's|\\|\\\\|g;s|\[|\\\[|g;s|\]|\\\]|g;s|\/|\\\/|g;s|\.|\\\.|g;s|\$|\\\$|g;s|\^|\\\^|g;s|\*|\\\*|g')
     local targetkey=$(echo "$2" | sed 's|\\|\\\\|g;s|\[|\\\[|g;s|\]|\\\]|g;s|\/|\\\/|g;s|\.|\\\.|g;s|\$|\\\$|g;s|\^|\\\^|g;s|\*|\\\*|g')
-    sed -e "/$targetsection/,/^\[/ s|${targetkey} *=.*$||" -e '/^$/d' $inputfile
+    sed -e "/$targetsection/,/^\[/ s|^${targetkey} *=.*$||" -e '/^$/d' $inputfile
     OK=$?
   fi
   return $OK
@@ -97,7 +97,7 @@ function fset(){
       if $self $inputfile -G "$1 $2"; then # if key exist
         #sed '/'$targetsection'/! b; :next; n; /'$targetkey'/! b next; s|'$targetkey'.*|'$2' ='$3'|' "$inputfile"
         #echo "sed /$targetsection/! b; :next; n; /$targetkey/! b next; s|$targetkey.*|$2 =$targetvalue|"
-        sed "/$targetsection/! b; :next; n; /$targetkey/! b next; s|$targetkey.*|$2 =$targetvalue|" $inputfile
+        sed "/$targetsection/! b; :next; n; /^$targetkey/! b next; s|^$targetkey.*|$2 =$targetvalue|" $inputfile
         OK=$?
       else
         #echo "sed /$targetsection/ s|\$|\n$2= $3|"
