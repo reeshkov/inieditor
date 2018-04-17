@@ -11,12 +11,12 @@ function fget(){
     local target=$(echo "$1" | sed 's|\\|\\\\|g;s|\[|\\\[|g;s|\]|\\\]|g;s|\/|\\\/|g;s|\.|\\\.|g;s|\$|\\\$|g;s|\^|\\\^|g;s|\*|\\\*|g')
     if [ "$1" != "${1#[}" ]; then
         # get section
-        value=$(sed -n "/$target/ s| *||g p" "$inputfile")
+        value=$(sed -n "/^$target/ s| *||g p" "$inputfile")
         [ -n "$value" ]
         OK=$?
     else
         # get value
-        value=$(sed -n '1,/\[/ s|^'${target}'.*= *||p' $inputfile)
+        value=$(sed -n '1,/\[/ s|^'"${target}"'.*= *||p' "$inputfile")
         OK=$?
     fi
   else
@@ -24,12 +24,12 @@ function fget(){
     if [ "$1" != "${1#[}" ]; then
       local targetsection="$1"
     else
-      local targetsection='['$1']'
+      local targetsection='['"$1"']'
     fi
     targetsection=$(echo "$targetsection" | sed 's|\\|\\\\|g;s|\[|\\\[|g;s|\]|\\\]|g;s|\/|\\\/|g;s|\.|\\\.|g;s|\$|\\\$|g;s|\^|\\\^|g;s|\*|\\\*|g')
     local targetkey=$(echo "$2" | sed 's|\\|\\\\|g;s|\[|\\\[|g;s|\]|\\\]|g;s|\/|\\\/|g;s|\.|\\\.|g;s|\$|\\\$|g;s|\^|\\\^|g;s|\*|\\\*|g')
     #key=b0; echo -e "[A]\a=\n[B]\nb0=\nb1=b1\n[C]\nc=c" | sed -n '/\[B\]/! b; :next; n; /\[/ b; /^'$key'.*= */ {s|^'$key'.*= *||; s|^$|empty| ; p;} $ b; b next;'
-    value=$(sed -n '/'$targetsection'/! b; :next; n; /\[/ b; /^'$targetkey'.*= */ {s|^'$targetkey'.*= *||; s|^$| | ; p;}; $ b; b next;' $inputfile)
+    value=$(sed -n '/^'"$targetsection"'/! b; :next; n; /\[/ b; /^'"$targetkey"'.*= */ {s|^'"$targetkey"'.*= *||; s|^$| | ; p;}; $ b; b next;' "$inputfile")
     OK=$?
   fi
   [ -n "$value" ] && echo "$value" && exit $OK
@@ -42,16 +42,16 @@ function fdel(){
   if [ 1 -eq $# ]; then
     local target=$(echo "$1" | sed 's|\\|\\\\|g;s|\[|\\\[|g;s|\]|\\\]|g;s|\/|\\\/|g;s|\.|\\\.|g;s|\$|\\\$|g;s|\^|\\\^|g;s|\*|\\\*|g')
     if [ "$1" != "${1#[}" ]; then
-        sed -e "/$target/ {s|.*||; :next; n; \$ b last; /\[/ b; s|.*||; b next; :last; s|.*||;}" -e '/^$/d' $inputfile
+        sed -e "/^$target/ {s|.*||; :next; n; \$ b last; /^\[/ b; s|.*||; b next; :last; s|.*||;}" -e '/^$/d' "$inputfile"
         OK=$?
     else
-        sed -e "1,/^\[/ s|^ *${target} *=.*$||" -e '/^$/d' $inputfile
+        sed -e "1,/^\[/ s|^ *${target} *=.*$||" -e '/^$/d' "$inputfile"
         OK=$?
     fi
   else
     local targetsection=$(echo "$1" | sed 's|\\|\\\\|g;s|\[|\\\[|g;s|\]|\\\]|g;s|\/|\\\/|g;s|\.|\\\.|g;s|\$|\\\$|g;s|\^|\\\^|g;s|\*|\\\*|g')
     local targetkey=$(echo "$2" | sed 's|\\|\\\\|g;s|\[|\\\[|g;s|\]|\\\]|g;s|\/|\\\/|g;s|\.|\\\.|g;s|\$|\\\$|g;s|\^|\\\^|g;s|\*|\\\*|g')
-    sed -e "/$targetsection/,/^\[/ s|^${targetkey} *=.*$||" -e '/^$/d' $inputfile
+    sed -e "/^$targetsection/,/^\[/ s|^${targetkey} *=.*$||" -e '/^$/d' "$inputfile"
     OK=$?
   fi
   return $OK
@@ -67,7 +67,7 @@ function fset(){
     else
       value="[$1]"
     fi
-    $self $inputfile -v -G $value > /dev/null 2>&1
+    $self "$inputfile" -v -G "$value" > /dev/null 2>&1
     OK=$?
     if [ 0 -ne $OK ]; then
       value=$(echo "$value" | sed 's|\\|\\\\|g;s|\[|\\\[|g;s|\]|\\\]|g;s|\/|\\\/|g;s|\.|\\\.|g;s|\$|\\\$|g;s|\^|\\\^|g;s|\*|\\\*|g')
@@ -80,32 +80,33 @@ function fset(){
     return $OK
   elif [ 2 -eq $# ]; then
     [ "$1" != "${1#[}" ] && echo "Unexpected argument: $1, expected <key> <value> pair" && return 1
-    if $self $inputfile -G "$1"; then
+    if $self "$inputfile" -G "$1"; then
       local targetkey=$(echo "$1" | sed 's|\\|\\\\|g;s|\[|\\\[|g;s|\]|\\\]|g;s|\/|\\\/|g;s|\.|\\\.|g;s|\$|\\\$|g;s|\^|\\\^|g;s|\*|\\\*|g')
       local targetvalue="$2"
-      sed "1,/^\[/ s|^${targetkey}.*$|$1=$2|" $inputfile
+      sed "1,/^\[/ s|^${targetkey}.*$|$1=$2|" "$inputfile"
       OK=$?
     else
-      sed "1 s|^|$1=$2\n|" $inputfile
+      sed "1 s|^|$1=$2\n|" "$inputfile"
       OK=$?
     fi
   elif [ 3 -le $# ]; then
     local targetsection=$(echo "$1" | sed 's|\\|\\\\|g;s|\[|\\\[|g;s|\]|\\\]|g;s|\/|\\\/|g;s|\.|\\\.|g;s|\$|\\\$|g;s|\^|\\\^|g;s|\*|\\\*|g')
     local targetkey=$(echo "$2" | sed 's|\\|\\\\|g;s|\[|\\\[|g;s|\]|\\\]|g;s|\/|\\\/|g;s|\.|\\\.|g;s|\$|\\\$|g;s|\^|\\\^|g;s|\*|\\\*|g')
     local targetvalue=$(echo "$3" | sed 's|\\|\\\\|g;s|\[|\\\[|g;s|\]|\\\]|g;s|\/|\\\/|g;s|\.|\\\.|g;s|\$|\\\$|g;s|\^|\\\^|g;s|\*|\\\*|g')
-    if $self $inputfile -G "$1"; then # if section exist
-      if $self $inputfile -G "$1 $2"; then # if key exist
+    if $self "$inputfile" -G "$1"; then # if section exist
+      #echo $self "$inputfile" -G "$1" "$2"
+      if $self "$inputfile" -G "$1" "$2"; then # if key exist
         #sed '/'$targetsection'/! b; :next; n; /'$targetkey'/! b next; s|'$targetkey'.*|'$2' ='$3'|' "$inputfile"
         #echo "sed /$targetsection/! b; :next; n; /$targetkey/! b next; s|$targetkey.*|$2 =$targetvalue|"
-        sed "/$targetsection/! b; :next; n; /^$targetkey/! b next; s|^$targetkey.*|$2 =$targetvalue|" $inputfile
+        sed "/^$targetsection/! b; :next; n; /^$targetkey/! b next; s|^$targetkey.*|$2 =$targetvalue|" "$inputfile"
         OK=$?
       else
-        #echo "sed /$targetsection/ s|\$|\n$2= $3|"
-        sed "/$targetsection/ s|\$|\n$2= $3|" $inputfile
+        #echo "^sed /$targetsection/ s|\$|\n$2= $3|"
+        sed "/^$targetsection/ s|\$|\n$2= $3|" "$inputfile"
         OK=$?
       fi
     else
-      sed -e "\$ s|\$|\n$targetsection\n$2 = $3\n|" $inputfile
+      sed -e "\$ s|\$|\n$targetsection\n$2 = $3\n|" "$inputfile"
       OK=$?
     fi
   fi
@@ -147,20 +148,20 @@ while (( "$#" )); do
     ;;
     -G|--get)
         shift
-        value=$(fget $@)
+        value=$(fget "$@")
         OK=$?
         break
         #exit $OK
     ;;
     -S|--set)
         shift
-        value=$(fset $@)
+        value=$(fset "$@")
         OK=$?
         break
     ;;
     -D|--del)
         shift
-        value="$(fdel $@)"
+        value=$(fdel "$@")
         OK=$?
         break
     ;;
@@ -173,5 +174,5 @@ if [ 2 -le $verbose ]; then
 elif [ 1 -le $verbose ]; then
   echo -E "$value"
 fi
-[ $OK ] && [ 1 -eq $write ] && echo -E "$value" > $inputfile
+[ $OK ] && [ 1 -eq $write ] && echo -E "$value" > "$inputfile"
 exit $OK
